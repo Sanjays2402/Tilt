@@ -24,7 +24,10 @@ One tap, three moods. Every look is just a bundle of the sliders underneath — 
 
 - **Metal rendering** — perspective, blur, and dimming computed on the GPU as the lid closes. The shaders live as a real `.metal` file in the app's resources.
 - **Live screen content** — ScreenCaptureKit keeps the picture under the effect updating in real time.
-- **Lid-angle hero** — the menu bar popover always shows your live lid angle up top.
+- **Lid-angle gauge** — the menu bar popover opens on an animated arc gauge of your live lid angle.
+- **Animated looks** — picking a preset glides every slider (and the live effect) to the new look with an ease-out sweep. Grab a slider mid-flight and it yields to you.
+- **Living frost** — a whisper of animated grain and a slow sheen drift through the glass. Frozen entirely when Reduce Motion is on.
+- **Preview hotkey** — ⌥⌘T anywhere plays the effect once on your current screen, no lid required.
 - **Launch at login** — set it once, it lives in the menu bar.
 - **Intel-safe mipmaps** — if the MPS Gaussian pyramid can't encode on your GPU, the renderer falls back to blit mipmaps instead of black glass.
 
@@ -40,7 +43,8 @@ Sources/
     Capture.swift           one ScreenCaptureKit engine for stream + snapshots
     Geometry.swift          projection math, spring, blur gradient
     Shaders.metal           the effect, as real Metal (in Resources/)
-    SettingsView.swift      the menu bar popover UI
+    SettingsView.swift      the menu bar popover UI, incl. the lid gauge
+    PreviewHotKey.swift     the global ⌥⌘T preview hotkey (Carbon)
   TiltProbe/      tilt-probe: a CLI for reading the raw sensor
 ```
 

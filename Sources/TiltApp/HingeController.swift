@@ -153,6 +153,16 @@ final class HingeController: ObservableObject {
         setPollInterval(Self.activePollInterval)
     }
 
+    /// Toggles the scripted preview, for the hotkey and the menu. While the
+    /// lid itself holds the effect, the toggle leaves it alone.
+    func togglePreview() {
+        if preview != nil {
+            preview = nil
+        } else {
+            runPreview()
+        }
+    }
+
     // MARK: - Polling
 
     private func setPollInterval(_ interval: TimeInterval) {

@@ -1,4 +1,5 @@
 import AppKit
+import Combine
 import SwiftUI
 
 /// The menu bar item and the settings popover.
@@ -11,6 +12,7 @@ final class MenuBar: NSObject, NSPopoverDelegate {
     private let controller: HingeController
     private var titleTimer: Timer?
     private var barWindowMoved: NSObjectProtocol?
+    private var activeCancellable: AnyCancellable?
 
     init(controller: HingeController, preferences: Preferences) {
         self.controller = controller
@@ -50,6 +52,13 @@ final class MenuBar: NSObject, NSPopoverDelegate {
         titleTimer = timer
         refreshTitle()
         watchBarWindow()
+
+        // The icon picks up the accent colour while the effect is on screen.
+        activeCancellable = controller.$isActive.sink { [weak self] active in
+            MainActor.assumeIsolated {
+                self?.statusItem.button?.contentTintColor = active ? .controlAccentColor : nil
+            }
+        }
     }
 
     deinit {

@@ -31,6 +31,7 @@ struct SettingsView: View {
             if controller.isSensorAvailable {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 14) {
+                        gaugeSection
                         effectGroup
                         if !hasScreenPermission {
                             permissionNotice
@@ -73,16 +74,19 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
-            VStack(alignment: .trailing, spacing: 0) {
-                Text(String(format: "%.0f°", controller.currentAngle))
-                    .font(.system(size: 30, weight: .semibold, design: .rounded).monospacedDigit())
-                Text("lid angle")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("Lid angle")
         }
+    }
+
+    /// The live lid angle as an arc gauge. The needle eases toward each new
+    /// reading instead of stepping.
+    private var gaugeSection: some View {
+        HStack {
+            Spacer()
+            AngleGauge(angle: controller.currentAngle)
+                .opacity(controller.isSensorAvailable ? 1 : 0.35)
+            Spacer()
+        }
+        .padding(.top, 2)
     }
 
     private var unavailableNotice: some View {
@@ -162,6 +166,11 @@ struct SettingsView: View {
     private var appGroup: some View {
         VStack(alignment: .leading, spacing: 8) {
             toggleRow("Show angle in menu bar", isOn: $preferences.showsAngleInMenuBar, help: nil)
+            toggleRow(
+                "Preview hotkey",
+                isOn: $preferences.previewHotKeyEnabled,
+                help: "⌥⌘T anywhere toggles the effect preview."
+            )
             toggleRow("Launch at login", isOn: $launchesAtLogin, help: nil)
                 .onChange(of: launchesAtLogin) { _, newValue in
                     setLaunchAtLogin(newValue)
@@ -193,7 +202,7 @@ struct SettingsView: View {
     private func presetCard(_ preset: LookPreset) -> some View {
         let active = preferences.activeLookPreset == preset
         return Button {
-            preferences.applyPreset(preset)
+            preferences.animatePreset(to: preset)
         } label: {
             VStack(alignment: .leading, spacing: 4) {
                 Text(preset.title)
@@ -360,5 +369,102 @@ private struct PointingHand: ViewModifier {
                     pushed = false
                 }
             }
+    }
+}
+
+/// An arc gauge for the live lid angle, 0° on the left to 135° on the right.
+/// The needle eases toward each new reading on a spring, so it sweeps instead
+/// of stepping between the sensor's ~10 Hz updates.
+private struct AngleGauge: View {
+    var angle: Double
+
+    @State private var smooth: Double
+
+    init(angle: Double) {
+        self.angle = angle
+        _smooth = State(initialValue: angle)
+    }
+
+    var body: some View {
+        ZStack {
+            Canvas { context, size in
+                let fraction = min(1, max(0, smooth / 135))
+                let center = CGPoint(x: size.width / 2, y: size.height - 8)
+                let radius = min(size.width / 2, size.height - 8) - 10
+
+                // Lid angle to a point on the arc, drawn explicitly so there
+                // is no ambiguity about arc direction.
+                func point(for value: Double, at r: CGFloat) -> CGPoint {
+                    let a = (180 + 180 * value / 135) * .pi / 180
+                    return CGPoint(x: center.x + r * cos(a), y: center.y - r * sin(a))
+                }
+
+                func arc(from: Double, to: Double) -> Path {
+                    var path = Path()
+                    for i in 0...64 {
+                        let v = from + (to - from) * Double(i) / 64
+                        let pt = point(for: v, at: radius)
+                        if i == 0 { path.move(to: pt) } else { path.addLine(to: pt) }
+                    }
+                    return path
+                }
+
+                let trackStyle = StrokeStyle(lineWidth: 7, lineCap: .round)
+                context.stroke(
+                    arc(from: 0, to: 135),
+                    with: .color(.secondary.opacity(0.25)),
+                    style: trackStyle
+                )
+                if fraction > 0.002 {
+                    context.stroke(
+                        arc(from: 0, to: 135 * fraction),
+                        with: .color(.accentColor),
+                        style: trackStyle
+                    )
+                }
+                for tick in [0.0, 45, 90, 135] {
+                    var line = Path()
+                    line.move(to: point(for: tick, at: radius - 8))
+                    line.addLine(to: point(for: tick, at: radius + 8))
+                    context.stroke(
+                        line,
+                        with: .color(.secondary.opacity(0.6)),
+                        style: StrokeStyle(lineWidth: 2, lineCap: .round)
+                    )
+                }
+                var needle = Path()
+                needle.move(to: center)
+                needle.addLine(to: point(for: 135 * fraction, at: radius - 13))
+                context.stroke(
+                    needle,
+                    with: .color(.primary),
+                    style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
+                )
+                context.fill(
+                    Path(ellipseIn: CGRect(x: center.x - 4, y: center.y - 4, width: 8, height: 8)),
+                    with: .color(.primary)
+                )
+            }
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
+                Text("\(Int(smooth.rounded()))°")
+                    .font(.system(size: 21, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                Text("lid angle")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.bottom, 4)
+        }
+        .frame(width: 148, height: 88)
+        .onChange(of: angle) { _, newValue in
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.75)) {
+                smooth = newValue
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Lid angle")
+        .accessibilityValue("\(Int(angle.rounded())) degrees")
     }
 }

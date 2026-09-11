@@ -18,6 +18,7 @@ struct Uniforms {
     float4 paddedAndBlur;    // padded size, max radius in pixels, blur strength
     float4 shape;            // blur floor, max dim, pixel scale, max level
     float4 light;            // dim floor, dim strength, dim reach, unused
+    float4 anim;             // time seconds, reduce motion flag, unused, unused
 };
 
 vertex float4 tiltVertex(uint vertexID [[vertex_id]]) {
@@ -74,5 +75,19 @@ fragment float4 tiltFragment(float4 position [[position]],
     // The sample is linear light. Raising the factor to 2.2 keeps the
     // dimming setting a fraction of the encoded brightness.
     colour.rgb *= pow(1.0 - maxDim * fade, 2.2);
+
+    // A whisper of life in the glass: faint animated grain and a slow sheen
+    // sweep, scaled by the dimming so the picture's bright areas stay clean.
+    // Frozen entirely when the user prefers reduced motion.
+    if (uniforms.anim.y < 0.5 && fade > 0.001) {
+        float time = uniforms.anim.x;
+        float2 cell = floor(texCoord * 480.0);
+        float tick = floor(time * 6.0);
+        float grain = fract(sin(dot(cell + tick * 0.37, float2(12.9898, 78.233))) * 43758.5453);
+        float band = fract(texCoord.x * 0.7 + texCoord.y * 0.3 - time * 0.02);
+        float sheen = smoothstep(0.44, 0.5, band) * (1.0 - smoothstep(0.5, 0.56, band));
+        colour.rgb += ((grain - 0.5) * 0.014 + sheen * 0.022) * fade;
+    }
+
     return float4(colour.rgb, 1.0);
 }

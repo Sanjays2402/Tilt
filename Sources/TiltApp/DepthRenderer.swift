@@ -23,6 +23,7 @@ final class DepthRenderer {
         var paddedAndBlur: SIMD4<Float>
         var shape: SIMD4<Float>
         var light: SIMD4<Float>
+        var anim: SIMD4<Float>
     }
 
     /// One held picture, built off the main thread and adopted on it.
@@ -51,6 +52,11 @@ final class DepthRenderer {
     private var paddedOrigin: CGPoint = .zero
     private var paddedSize: CGSize = .zero
     private var maxLevel: Float = 0
+
+    /// When the renderer was created, for the shader's animation clock.
+    private let clockStart = CACurrentMediaTime()
+    /// 1 when the user prefers reduced motion, freezing the shader's shimmer.
+    private var reduceMotionFlag: Float = 0
 
     /// The picture a live stream writes into. `makePicture` builds its own
     /// texture instead, so only one of the two is in use at a time.
@@ -310,6 +316,7 @@ final class DepthRenderer {
             width: screenSize.width * pixelScale,
             height: screenSize.height * pixelScale
         )
+        reduceMotionFlag = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? 1 : 0
         return true
     }
 
@@ -505,7 +512,8 @@ final class DepthRenderer {
                 Float(maxBlurRadius * Double(pixelScale)), Float(blurStrength)
             ),
             shape: SIMD4(Float(hingeFloor), Float(maxDim), Float(pixelScale), maxLevel),
-            light: SIMD4(Float(dimHingeFloor), Float(dimStrength), Float(dimReach), 0)
+            light: SIMD4(Float(dimHingeFloor), Float(dimStrength), Float(dimReach), 0),
+            anim: SIMD4(Float(CACurrentMediaTime() - clockStart), reduceMotionFlag, 0, 0)
         )
 
         let pass = MTLRenderPassDescriptor()
