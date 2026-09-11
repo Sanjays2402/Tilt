@@ -85,12 +85,6 @@ Requires macOS 14 or later and a MacBook with a compatible lid angle sensor. To 
 - The effect stops when macOS sleeps as the lid closes.
 - Clicks pass through the effect to the apps underneath.
 
-## Credits
-
-Tilt is an original implementation inspired by [Mac Duo](https://github.com/sumimakito/Mac-Duo) by [Makito](https://github.com/sumimakito) — the lid-angle sensing approach and the depth-effect concept originate there.
-
 ## License
 
 Licensed under the [Apache License 2.0](LICENSE).
-
-See [NOTICE](NOTICE) for attribution.

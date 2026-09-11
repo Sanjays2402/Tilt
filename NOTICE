@@ -1,8 +1,2 @@
 Tilt
 Copyright 2026 Sanjay Santhanam
-
-Inspired by Mac Duo, copyright 2026 Makito
-(https://github.com/sumimakito/Mac-Duo). The lid-angle sensing approach and
-the depth-effect concept originate there.
-
-Both projects are licensed under the Apache License 2.0.
