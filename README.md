@@ -54,7 +54,7 @@ Sources/
 
 ## Install
 
-**Dev builds** — every push to `main` publishes a DMG and a ZIP on the [dev prerelease](https://github.com/Sanjays2402/Tilt/releases/tag/dev). These are ad-hoc signed and not notarized, so on first launch right-click Tilt and choose Open. To ship signed, notarized builds instead, add the code-signing secrets below.
+**Dev builds** — every push to `main` publishes a DMG and a ZIP on the [dev prerelease](https://github.com/Sanjays2402/Tilt/releases/tag/dev). These are ad-hoc signed and not notarized, so on first launch right-click Tilt and choose Open.
 
 Or **build it yourself** — it takes a minute.
 
@@ -84,6 +84,19 @@ Requires macOS 14 or later and a MacBook with a compatible lid angle sensor. To 
 - The effect applies only to the built-in display.
 - The effect stops when macOS sleeps as the lid closes.
 - Clicks pass through the effect to the apps underneath.
+
+## Code signing
+
+The release workflow signs and notarizes automatically when these repository secrets are set:
+
+- `APPLE_CERTIFICATE_P12_BASE64`
+- `APPLE_CERTIFICATE_PASSWORD`
+- `APPLE_TEAM_ID`
+- `APPLE_NOTARY_KEY_P8_BASE64`
+- `APPLE_NOTARY_KEY_ID`
+- `APPLE_NOTARY_ISSUER_ID`
+
+Without them, it ships ad-hoc-signed development builds.
 
 ## License
 
