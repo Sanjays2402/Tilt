@@ -1,0 +1,364 @@
+import AppKit
+import ServiceManagement
+import SwiftUI
+
+struct SettingsView: View {
+    @ObservedObject var preferences: Preferences
+    @ObservedObject var controller: HingeController
+
+    @State private var launchesAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var hasScreenPermission = CGPreflightScreenCaptureAccess()
+    @State private var settingsOpenFailed = false
+
+    var onQuit: () -> Void
+
+    private static let width: CGFloat = 320
+    private static let inset: CGFloat = 14
+    private static let bodyHeight: CGFloat = 430
+    private static let makerURL = URL(string: "https://github.com/Sanjays2402")!
+    private static let upstreamURL = URL(string: "https://github.com/sumimakito/Mac-Duo")!
+    private static let screenRecordingSettingsURL = URL(
+        string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_ScreenCapture"
+    )!
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            header
+                .padding(.horizontal, Self.inset)
+                .padding(.top, 12)
+                .padding(.bottom, 10)
+            Divider()
+            if controller.isSensorAvailable {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        effectGroup
+                        if !hasScreenPermission {
+                            permissionNotice
+                        }
+                        lookGroup
+                        motionGroup
+                    }
+                    .padding(.horizontal, Self.inset)
+                    .padding(.vertical, 12)
+                }
+                .frame(height: Self.bodyHeight)
+            } else {
+                unavailableNotice
+                    .padding(.horizontal, Self.inset)
+                    .padding(.vertical, 12)
+            }
+            Divider()
+            appGroup
+                .padding(.horizontal, Self.inset)
+                .padding(.top, 10)
+                .padding(.bottom, 12)
+        }
+        .frame(width: Self.width)
+        .tint(.indigo)
+        .onAppear { hasScreenPermission = CGPreflightScreenCaptureAccess() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            hasScreenPermission = CGPreflightScreenCaptureAccess()
+        }
+    }
+
+    // MARK: - Header
+
+    private var header: some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Tilt")
+                    .font(.title2.weight(.bold))
+                Text("Depth for your lid")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 0) {
+                Text(String(format: "%.0f°", controller.currentAngle))
+                    .font(.system(size: 30, weight: .semibold, design: .rounded).monospacedDigit())
+                Text("lid angle")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Lid angle")
+        }
+    }
+
+    private var unavailableNotice: some View {
+        Text("This Mac has no lid angle sensor. Only some MacBook models have one.")
+            .font(.callout)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    // MARK: - Sections
+
+    private var effectGroup: some View {
+        group("Effect", disabled: false) {
+            // The master switch lives outside the disabled subtree on
+            // purpose: disabling it with the group would lock it off.
+            toggleRow(
+                "Depth effect",
+                isOn: $preferences.isEnabled,
+                help: "Leans the screen away as the lid closes."
+            )
+            toggleRow(
+                "Live rendering",
+                isOn: $preferences.isLivePicture,
+                help: "Off holds the frame from when the effect started."
+            )
+            .disabled(!preferences.isEnabled)
+        }
+    }
+
+    private var lookGroup: some View {
+        group("Look") {
+            HStack(spacing: 8) {
+                ForEach(LookPreset.allCases) { preset in
+                    presetCard(preset)
+                }
+            }
+            slider(
+                "Blur", value: $preferences.maxBlurRadius, in: 10...160, format: "%.0f pt",
+                help: "Blur radius at the far edge."
+            )
+            slider(
+                "Blur spread", value: $preferences.blurEvenness, in: 0...1, format: "%.0f%%", scale: 100,
+                help: "0 blurs the far edge only, 100 the whole picture."
+            )
+            slider(
+                "Dimming", value: $preferences.maxDim, in: 0...1, format: "%.0f%%", scale: 100,
+                help: "How dark the far edge goes."
+            )
+            slider(
+                "Dimming spread", value: $preferences.dimReach, in: 0.2...1, format: "%.0f%%", scale: 100,
+                help: "Everything above this height goes fully dark."
+            )
+        }
+    }
+
+    private var motionGroup: some View {
+        group("Motion") {
+            slider(
+                "Start angle", value: $preferences.thresholdAngle, in: 5...130, format: "%.0f°",
+                help: "The effect starts at this angle."
+            )
+            slider(
+                "Full effect after", value: $preferences.blurSpan, in: 5...60, format: "%.0f°",
+                help: "Degrees of further closing to reach full strength."
+            )
+            slider(
+                "Lean back", value: $preferences.recession, in: 0...3, format: "%.1f×",
+                help: "Degrees of lean per degree of closing. 1 holds it still."
+            )
+            slider(
+                "Perspective", value: perspective, in: 0...1, format: "%.0f%%", scale: 100,
+                help: "0 keeps the sides parallel, 100 converges sharply."
+            )
+        }
+    }
+
+    private var appGroup: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            toggleRow("Show angle in menu bar", isOn: $preferences.showsAngleInMenuBar, help: nil)
+            toggleRow("Launch at login", isOn: $launchesAtLogin, help: nil)
+                .onChange(of: launchesAtLogin) { _, newValue in
+                    setLaunchAtLogin(newValue)
+                }
+            HStack {
+                Button("Reset") { preferences.resetToDefaults() }
+                Spacer()
+                Button("Quit", action: onQuit)
+            }
+            .controlSize(.small)
+            .padding(.top, 2)
+            HStack(spacing: 0) {
+                Text("Crafted by ").foregroundStyle(.secondary)
+                Link("Sanjay", destination: Self.makerURL)
+                    .pointingHand()
+                Spacer()
+                Text("Inspired by ").foregroundStyle(.secondary)
+                Link("Mac Duo", destination: Self.upstreamURL)
+                    .pointingHand()
+                Text(" by Makito").foregroundStyle(.secondary)
+            }
+            .font(.caption2)
+            .padding(.top, 2)
+        }
+    }
+
+    // MARK: - Preset cards
+
+    private func presetCard(_ preset: LookPreset) -> some View {
+        let active = preferences.activeLookPreset == preset
+        return Button {
+            preferences.applyPreset(preset)
+        } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(preset.title)
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(active ? .primary : .secondary)
+                Text(preset.blurb)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, minHeight: 64, alignment: .topLeading)
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(active ? Color.indigo.opacity(0.14) : Color.secondary.opacity(0.07))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(active ? Color.indigo : Color.clear, lineWidth: 1.5)
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(preset.title) look")
+        .accessibilityAddTraits(active ? .isSelected : [])
+    }
+
+    // MARK: - Controls
+
+    private func toggleRow(_ title: String, isOn: Binding<Bool>, help: String?) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text(title)
+                Spacer()
+                Toggle("", isOn: isOn)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .accessibilityLabel(title)
+            }
+            description(help)
+        }
+    }
+
+    @ViewBuilder
+    private func description(_ text: String?) -> some View {
+        if let text {
+            Text(text)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var perspective: Binding<Double> {
+        Binding(
+            get: { (Preferences.farthestEye - preferences.viewingDistance) / Preferences.eyeRange },
+            set: { preferences.viewingDistance = Preferences.farthestEye - $0 * Preferences.eyeRange }
+        )
+    }
+
+    private var permissionNotice: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Screen Recording permission is required to show the depth effect.")
+                .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
+            Button("Open System Settings") {
+                openScreenRecordingSettings()
+            }
+            .controlSize(.small)
+            if settingsOpenFailed {
+                Text("Could not open System Settings. Open it manually and enable screen recording for Tilt under Privacy & Security.")
+                    .font(.caption)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(10)
+        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func openScreenRecordingSettings() {
+        settingsOpenFailed = false
+        Task { @MainActor in
+            do {
+                let configuration = NSWorkspace.OpenConfiguration()
+                configuration.activates = true
+                _ = try await NSWorkspace.shared.open(Self.screenRecordingSettingsURL, configuration: configuration)
+            } catch {
+                settingsOpenFailed = true
+            }
+        }
+    }
+
+    private func group<Content: View>(
+        _ title: String,
+        disabled: Bool = true,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+            content()
+        }
+        .disabled(disabled && !preferences.isEnabled)
+    }
+
+    private func slider(
+        _ title: String,
+        value: Binding<Double>,
+        in range: ClosedRange<Double>,
+        format: String,
+        scale: Double = 1,
+        help: String? = nil
+    ) -> some View {
+        let reading = String(format: format, value.wrappedValue * scale)
+        return VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text(title)
+                Spacer()
+                Text(reading)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+            Slider(value: value, in: range)
+                .labelsHidden()
+                .controlSize(.small)
+                .accessibilityLabel(title)
+                .accessibilityValue(reading)
+            description(help)
+        }
+    }
+
+    private func setLaunchAtLogin(_ enabled: Bool) {
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+        } catch {
+            launchesAtLogin = SMAppService.mainApp.status == .enabled
+        }
+    }
+}
+
+private extension View {
+    func pointingHand() -> some View {
+        modifier(PointingHand())
+    }
+}
+
+private struct PointingHand: ViewModifier {
+    @State private var pushed = false
+
+    func body(content: Content) -> some View {
+        content
+            .onHover { inside in
+                if inside, !pushed {
+                    NSCursor.pointingHand.push()
+                    pushed = true
+                } else if !inside, pushed {
+                    NSCursor.pop()
+                    pushed = false
+                }
+            }
+    }
+}

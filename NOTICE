@@ -1,0 +1,6 @@
+Tilt
+Copyright 2026 Sanjay Santhanam
+
+A clean-room rewrite inspired by Mac Duo, copyright 2026 Makito
+(https://github.com/sumimakito/Mac-Duo). The lid-angle sensing approach and
+the depth-effect concept originate there; every line of this codebase is new.

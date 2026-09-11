@@ -1,0 +1,147 @@
+import Foundation
+import IOKit
+import IOKit.hid
+
+/// Reads the lid hinge angle from the MacBook orientation sensor.
+///
+/// The sensor is an `AppleSPUHIDDevice`, vendor `0x05AC`, product `0x8104`, on
+/// HID usage page `0x20`, usage `0x8A`. Two feature reports carry the same
+/// angle:
+///
+/// - Report 7: 5 bytes `[0x07, b0, b1, b2, b3]`, little-endian hundredths of a
+///   degree. Not every model declares it.
+/// - Report 1: 3 bytes `[0x01, lo, hi]`, whole degrees, 0...360. The fallback.
+///
+/// The value refreshes about every 100 ms and needs no permission.
+public final class HingeSensor {
+
+    /// Which report the sensor answers with, decided once at open time.
+    public enum Resolution {
+        /// Report 7, 0.01° steps.
+        case fine
+        /// Report 1, 1° steps.
+        case coarse
+
+        public var reportID: Int {
+            switch self {
+            case .fine: return 7
+            case .coarse: return 1
+            }
+        }
+
+        public var describedName: String {
+            switch self {
+            case .fine: return "report 7 (0.01°)"
+            case .coarse: return "report 1 (1°)"
+            }
+        }
+    }
+
+    /// What the last call to `angle()` saw. A failed read returns `nil` and
+    /// leaves the reason here for diagnostics.
+    public struct ReadTrace {
+        /// The result of `IOHIDDeviceGetReport`.
+        public var status: IOReturn = kIOReturnSuccess
+        /// Bytes the device wrote.
+        public var length: Int = 0
+        public var bytes: [UInt8] = []
+        /// The decoded value when it fell outside 0...360.
+        public var rejectedDegrees: Double?
+    }
+
+    public private(set) var lastRead = ReadTrace()
+    public private(set) var resolution: Resolution?
+
+    private var manager: IOHIDManager?
+    private var device: IOHIDDevice?
+    private var buffer = [UInt8](repeating: 0, count: 32)
+
+    public var isAvailable: Bool { device != nil && resolution != nil }
+
+    public init() {
+        open()
+    }
+
+    deinit {
+        if let manager {
+            IOHIDManagerClose(manager, IOOptionBits(kIOHIDOptionsTypeNone))
+        }
+    }
+
+    /// The current lid angle in degrees, or `nil` if the read failed.
+    ///
+    /// 0 means closed; a MacBook opens to roughly 130 degrees.
+    public func angle() -> Double? {
+        guard let resolution else { return nil }
+        guard let bytes = read(reportID: resolution.reportID) else { return nil }
+
+        let degrees: Double
+        switch resolution {
+        case .fine:
+            guard bytes.count >= 5 else { return nil }
+            let raw = UInt32(bytes[1])
+                | UInt32(bytes[2]) << 8
+                | UInt32(bytes[3]) << 16
+                | UInt32(bytes[4]) << 24
+            degrees = Double(raw) / 100
+        case .coarse:
+            guard bytes.count >= 3 else { return nil }
+            degrees = Double(UInt16(bytes[1]) | UInt16(bytes[2]) << 8)
+        }
+
+        guard degrees >= 0, degrees <= 360 else {
+            lastRead.rejectedDegrees = degrees
+            return nil
+        }
+        return degrees
+    }
+
+    // MARK: - Device
+
+    private func open() {
+        let manager = IOHIDManagerCreate(kCFAllocatorDefault, IOOptionBits(kIOHIDOptionsTypeNone))
+        let matching: [String: Any] = [
+            kIOHIDDeviceUsagePageKey: 0x20,
+            kIOHIDDeviceUsageKey: 0x8A,
+        ]
+        IOHIDManagerSetDeviceMatching(manager, matching as CFDictionary)
+
+        guard IOHIDManagerOpen(manager, IOOptionBits(kIOHIDOptionsTypeNone)) == kIOReturnSuccess else {
+            return
+        }
+        self.manager = manager
+
+        guard let devices = IOHIDManagerCopyDevices(manager) as? Set<IOHIDDevice> else { return }
+        for candidate in devices {
+            device = candidate
+            if let bytes = read(reportID: 7), bytes.count >= 5 {
+                resolution = .fine
+                return
+            }
+            if let bytes = read(reportID: 1), bytes.count >= 3 {
+                resolution = .coarse
+                return
+            }
+        }
+        device = nil
+    }
+
+    private func read(reportID: Int) -> [UInt8]? {
+        lastRead = ReadTrace()
+        guard let device else {
+            lastRead.status = kIOReturnNoDevice
+            return nil
+        }
+        var length = CFIndex(buffer.count)
+        let result = buffer.withUnsafeMutableBufferPointer { pointer -> IOReturn in
+            guard let base = pointer.baseAddress else { return kIOReturnBadArgument }
+            return IOHIDDeviceGetReport(device, kIOHIDReportTypeFeature, CFIndex(reportID), base, &length)
+        }
+        lastRead.status = result
+        lastRead.length = Int(length)
+        guard result == kIOReturnSuccess, length > 0 else { return nil }
+        let bytes = Array(buffer[0..<Int(length)])
+        lastRead.bytes = bytes
+        return bytes
+    }
+}
