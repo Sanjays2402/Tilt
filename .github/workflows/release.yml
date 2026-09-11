@@ -60,7 +60,8 @@ jobs:
             echo "zip=Tilt-dev.zip"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Validate signing secrets
+      - name: Detect signing secrets
+        id: signing
         env:
           APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -70,10 +71,14 @@ jobs:
           APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
         run: |
           set -euo pipefail
-          for name in APPLE_CERTIFICATE_P12_BASE64 APPLE_CERTIFICATE_PASSWORD APPLE_TEAM_ID \
-            APPLE_NOTARY_KEY_P8_BASE64 APPLE_NOTARY_KEY_ID APPLE_NOTARY_ISSUER_ID; do
-            [[ -n "${!name}" ]] || { echo "::error::Missing secret: $name"; exit 1; }
-          done
+          if [[ -n "$APPLE_CERTIFICATE_P12_BASE64" && -n "$APPLE_CERTIFICATE_PASSWORD" && -n "$APPLE_TEAM_ID" \
+             && -n "$APPLE_NOTARY_KEY_P8_BASE64" && -n "$APPLE_NOTARY_KEY_ID" && -n "$APPLE_NOTARY_ISSUER_ID" ]]; then
+            echo "have_signing=true" >> "$GITHUB_OUTPUT"
+            echo "All signing secrets present; producing a signed, notarized build."
+          else
+            echo "have_signing=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Signing secrets are missing; producing an unsigned (ad-hoc signed) dev build."
+          fi
 
       - name: Build universal app
         run: |
@@ -82,6 +87,7 @@ jobs:
           lipo "$APP_PATH/Contents/MacOS/Tilt" -verify_arch arm64 x86_64
 
       - name: Install Developer ID credentials
+        if: steps.signing.outputs.have_signing == 'true'
         env:
           APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -121,6 +127,7 @@ jobs:
           echo "SIGNING_IDENTITY=$IDENTITIES" >> "$GITHUB_ENV"
 
       - name: Sign release app
+        if: steps.signing.outputs.have_signing == 'true'
         env:
           APP_VERSION: ${{ steps.meta.outputs.version }}
           BUILD_VERSION: ${{ steps.meta.outputs.build }}
@@ -139,9 +146,10 @@ jobs:
           printf '%s\n' "$INFO" | grep -q '^Timestamp='
           printf '%s\n' "$INFO" | grep -q 'flags=.*runtime'
 
-      - name: Package signed DMG
+      - name: Package DMG
         env:
           DMG_NAME: ${{ steps.meta.outputs.dmg }}
+          HAVE_SIGNING: ${{ steps.signing.outputs.have_signing }}
         run: |
           set -euo pipefail
           mkdir -p "$DIST_PATH"
@@ -152,11 +160,14 @@ jobs:
           DMG_PATH="$DIST_PATH/$DMG_NAME"
           hdiutil create -volname 'Tilt' -srcfolder "$STAGING" \
             -fs HFS+ -format UDZO "$DMG_PATH"
-          codesign --force --sign "$SIGNING_IDENTITY" --keychain "$KEYCHAIN_PATH" --timestamp "$DMG_PATH"
-          codesign --verify --strict "$DMG_PATH"
+          if [[ "$HAVE_SIGNING" == "true" ]]; then
+            codesign --force --sign "$SIGNING_IDENTITY" --keychain "$KEYCHAIN_PATH" --timestamp "$DMG_PATH"
+            codesign --verify --strict "$DMG_PATH"
+          fi
           echo "DMG_PATH=$DMG_PATH" >> "$GITHUB_ENV"
 
       - name: Notarize DMG
+        if: steps.signing.outputs.have_signing == 'true'
         env:
           APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
           APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
@@ -184,15 +195,18 @@ jobs:
       - name: Staple tickets and package ZIP
         env:
           ZIP_NAME: ${{ steps.meta.outputs.zip }}
+          HAVE_SIGNING: ${{ steps.signing.outputs.have_signing }}
         run: |
           set -euo pipefail
-          xcrun stapler staple "$DMG_PATH"
-          xcrun stapler validate "$DMG_PATH"
-          codesign --verify --strict "$DMG_PATH"
-          # The ZIP needs the app's own ticket for offline installation.
-          xcrun stapler staple "$APP_PATH"
-          xcrun stapler validate "$APP_PATH"
-          codesign --verify --strict --all-architectures "$APP_PATH"
+          if [[ "$HAVE_SIGNING" == "true" ]]; then
+            xcrun stapler staple "$DMG_PATH"
+            xcrun stapler validate "$DMG_PATH"
+            codesign --verify --strict "$DMG_PATH"
+            # The ZIP needs the app's own ticket for offline installation.
+            xcrun stapler staple "$APP_PATH"
+            xcrun stapler validate "$APP_PATH"
+            codesign --verify --strict --all-architectures "$APP_PATH"
+          fi
           ZIP_PATH="$DIST_PATH/$ZIP_NAME"
           ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_PATH"
           echo "ZIP_PATH=$ZIP_PATH" >> "$GITHUB_ENV"
@@ -230,6 +244,7 @@ jobs:
       - name: Write release notes
         env:
           BUILD_LABEL: ${{ steps.meta.outputs.label }}
+          HAVE_SIGNING: ${{ steps.signing.outputs.have_signing }}
         run: |
           set -euo pipefail
           {
@@ -239,6 +254,9 @@ jobs:
             printf 'Requires macOS 14 or later and a MacBook with a compatible lid angle sensor.\n'
             printf 'Includes Apple Silicon and Intel binaries.\n\n'
             printf 'Grant Screen Recording permission when prompted to enable the effect.\n'
+            if [[ "$HAVE_SIGNING" != "true" ]]; then
+              printf '\n> Unsigned dev build (ad-hoc signature only, not notarized). On first launch, right-click Tilt and choose Open. Signed, notarized builds appear here once signing secrets are configured.\n'
+            fi
           } > "$DIST_PATH/NOTES.md"
 
       - name: Publish development build

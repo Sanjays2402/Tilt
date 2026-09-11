@@ -38,6 +38,14 @@ mkdir -p "$BUNDLE/Contents/MacOS" "$BUNDLE/Contents/Resources"
 cp "$BINARY" "$BUNDLE/Contents/MacOS/Tilt"
 cp Resources/Info.plist "$BUNDLE/Contents/Info.plist"
 cp LICENSE NOTICE "$BUNDLE/Contents/Resources/"
+# SwiftPM resource bundles (e.g. the bundle holding Shaders.metal, which
+# DepthRenderer loads through Bundle.module). They sit next to the built
+# binary; the app can't see them unless they're inside the bundle.
+for resource_bundle in "$BIN_PATH"/*.bundle; do
+  if [ -d "$resource_bundle" ]; then
+    cp -R "$resource_bundle" "$BUNDLE/Contents/Resources/"
+  fi
+done
 if [ -f Resources/AppIcon.icns ]; then
   cp Resources/AppIcon.icns "$BUNDLE/Contents/Resources/AppIcon.icns"
 fi

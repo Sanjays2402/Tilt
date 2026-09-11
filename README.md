@@ -81,7 +81,7 @@ Requires macOS 14 or later and a MacBook with a compatible lid angle sensor. To 
 
 ## Credits
 
-Tilt is a clean-room rewrite inspired by [Mac Duo](https://github.com/sumimakito/Mac-Duo) by [Makito](https://github.com/sumimakito) — the lid-angle sensing approach and the depth-effect concept originate there; every line here is new.
+Tilt is an original implementation inspired by [Mac Duo](https://github.com/sumimakito/Mac-Duo) by [Makito](https://github.com/sumimakito) — the lid-angle sensing approach and the depth-effect concept originate there.
 
 ## License
 
