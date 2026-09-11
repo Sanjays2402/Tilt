@@ -78,13 +78,6 @@ Requires macOS 14 or later and a MacBook with a compatible lid angle sensor. To 
 ./build.sh && ./build/tilt-probe
 ```
 
-## Known limitations
-
-- Only MacBooks with a compatible lid angle sensor can use the effect. The app says so when none is found.
-- The effect applies only to the built-in display.
-- The effect stops when macOS sleeps as the lid closes.
-- Clicks pass through the effect to the apps underneath.
-
 ## Code signing
 
 The release workflow signs and notarizes automatically when these repository secrets are set:
