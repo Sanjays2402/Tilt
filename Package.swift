@@ -14,7 +14,7 @@ let package = Package(
             name: "Tilt",
             dependencies: ["TiltSensor"],
             path: "Sources/TiltApp",
-            resources: [.process("Resources")],
+            resources: [.copy("Resources")],
             swiftSettings: [.swiftLanguageMode(.v5)]
         ),
         .executableTarget(
