@@ -8,7 +8,7 @@
 
 Close the lid and watch your screen lean away into frosted glass — tilt, blur, and fade, rendered live on the GPU. Pick a look, tune it, and forget it's there.
 
-<img src="./assets/readme-hero.png" alt="Concept render: a MacBook lid closing into frosted glass">
+<img src="./assets/readme-hero.png" alt="Tilt: the frosted glass depth effect">
 
 </div>
 
