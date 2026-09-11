@@ -10,8 +10,6 @@ Close the lid and watch your screen lean away into frosted glass — tilt, blur,
 
 <img src="./assets/readme-hero.png" alt="Concept render: a MacBook lid closing into frosted glass">
 
-*Concept renders — real screenshots once the app is running on hardware.*
-
 </div>
 
 ---
@@ -56,7 +54,7 @@ Sources/
 
 ## Install
 
-**Dev builds** — every push to `main` publishes a DMG and a ZIP on the [dev prerelease](https://github.com/Sanjays2402/Tilt/releases/tag/dev). These are ad-hoc signed and not notarized, so on first launch right-click Tilt and choose Open. Signed, notarized builds will appear there once code signing is configured.
+**Dev builds** — every push to `main` publishes a DMG and a ZIP on the [dev prerelease](https://github.com/Sanjays2402/Tilt/releases/tag/dev). These are ad-hoc signed and not notarized, so on first launch right-click Tilt and choose Open. To ship signed, notarized builds instead, add the code-signing secrets below.
 
 Or **build it yourself** — it takes a minute.
 
