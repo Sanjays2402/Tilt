@@ -8,11 +8,17 @@
 
 Close the lid and watch your screen lean away into frosted glass — tilt, blur, and fade, rendered live on the GPU. Pick a look, tune it, and forget it's there.
 
+<img src="./assets/readme-hero.png" alt="Concept render: a MacBook lid closing into frosted glass">
+
+*Concept renders — real screenshots once the app is running on hardware.*
+
 </div>
 
 ---
 
 ## Looks
+
+<img src="./assets/readme-looks.png" alt="The three looks: Frosted, Noir, Breeze">
 
 One tap, three moods. Every look is just a bundle of the sliders underneath — fine-tune freely, and the card unselects when you wander off-preset.
 
