@@ -50,7 +50,9 @@ Sources/
 
 ## Install
 
-No prebuilt download yet — build it yourself, it takes a minute.
+**Dev builds** — every push to `main` publishes a DMG and a ZIP on the [dev prerelease](https://github.com/Sanjays2402/Tilt/releases/tag/dev). These are ad-hoc signed and not notarized, so on first launch right-click Tilt and choose Open. Signed, notarized builds will appear there once code signing is configured.
+
+Or **build it yourself** — it takes a minute.
 
 Requires Xcode with Swift 6.0 or later. Run from the project directory:
 
