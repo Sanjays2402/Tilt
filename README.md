@@ -16,7 +16,13 @@ Close the lid and watch your screen lean away into frosted glass — tilt, blur,
 
 ## Looks
 
-<img src="./assets/readme-looks.png" alt="The three looks: Frosted, Noir, Breeze">
+<table>
+  <tr>
+    <td align="center"><img src="./assets/readme-look-frosted.png" alt="Frosted"></td>
+    <td align="center"><img src="./assets/readme-look-noir.png" alt="Noir"></td>
+    <td align="center"><img src="./assets/readme-look-breeze.png" alt="Breeze"></td>
+  </tr>
+</table>
 
 One tap, three moods. Every look is just a bundle of the sliders underneath — fine-tune freely, and the card unselects when you wander off-preset.
 
