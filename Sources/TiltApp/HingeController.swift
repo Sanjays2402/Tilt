@@ -27,6 +27,7 @@ final class HingeController: ObservableObject {
     private let preferences: Preferences
     private let sensor = HingeSensor()
     private let stage = DepthStage()
+    private let powerMonitor = PowerMonitor()
 
     private var pollTimer: Timer?
     private var pollInterval: TimeInterval = 0
@@ -48,6 +49,9 @@ final class HingeController: ObservableObject {
     private var isCapturePending = false
     private var lastMovedDownTime: CFTimeInterval = -.greatestFiniteMagnitude
     private var builtInLayout = Layout()
+    private var idleGlassTimer: Timer?
+    /// Idle glass has fired and the user has not come back yet.
+    private var idleGlassFired = false
 
     private static let idlePollInterval: TimeInterval = 1.0 / 8
     private static let activePollInterval: TimeInterval = 1.0 / 30
@@ -111,6 +115,7 @@ final class HingeController: ObservableObject {
         setPollInterval(Self.idlePollInterval)
         builtInLayout = Layout(displayID: NSScreen.builtIn?.displayID, frame: NSScreen.builtIn?.frame)
         observeSystemEvents()
+        startIdleGlassTimer()
         DistributedNotificationCenter.default().addObserver(
             forName: Notification.Name("com.sanjays2402.Tilt.preview"),
             object: nil,
@@ -132,6 +137,8 @@ final class HingeController: ObservableObject {
         pollTimer?.invalidate()
         pollTimer = nil
         pollInterval = 0
+        idleGlassTimer?.invalidate()
+        idleGlassTimer = nil
         stopDisplayLink()
         stage.dismiss(animated: false)
         capture.endPrewarm()
@@ -161,6 +168,50 @@ final class HingeController: ObservableObject {
         } else {
             runPreview()
         }
+    }
+
+    // MARK: - Idle glass
+
+    /// Checks every 30 seconds whether the Mac has sat untouched long
+    /// enough to play the effect once, screensaver-style.
+    private func startIdleGlassTimer() {
+        let timer = Timer(timeInterval: 30, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.checkIdleGlass() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        idleGlassTimer = timer
+    }
+
+    private func checkIdleGlass() {
+        guard preferences.idleGlassEnabled,
+              isSensorAvailable,
+              preferences.isEnabled,
+              !isActive,
+              preview == nil else {
+            return
+        }
+        let idle = Self.idleSeconds()
+        if idleGlassFired {
+            // The user has to come back before it can fire again.
+            if idle < 30 { idleGlassFired = false }
+            return
+        }
+        let threshold = max(60, preferences.idleGlassMinutes * 60)
+        guard idle >= threshold else { return }
+        idleGlassFired = true
+        Log.hinge.notice(
+            "idle glass: idle \(idle, format: .fixed(precision: 0))s, playing preview"
+        )
+        runPreview()
+    }
+
+    /// Seconds since the last keyboard or mouse activity, via public Quartz
+    /// API. The minimum of the two covers typing and mousing alike.
+    private static func idleSeconds() -> TimeInterval {
+        let state = CGEventSourceStateID.combinedSessionState
+        let keys = CGEventSource.secondsSinceLastEventType(state, .keyDown)
+        let mouse = CGEventSource.secondsSinceLastEventType(state, .mouseMoved)
+        return min(keys, mouse)
     }
 
     // MARK: - Polling
@@ -285,6 +336,13 @@ final class HingeController: ObservableObject {
         }
     }
 
+    /// Live picture, unless battery saver is holding the frame on battery
+    /// power. Read at each decision point so a mid-effect power change
+    /// takes effect on the next one.
+    private var effectiveLivePicture: Bool {
+        preferences.isLivePicture && !(preferences.batterySaverEnabled && powerMonitor.isOnBattery)
+    }
+
     /// Runs only while the lid is closing, so holding it still does not leave
     /// a capture loop running.
     private func updatePrewarm(angle: Double, ceiling: Double) {
@@ -295,7 +353,7 @@ final class HingeController: ObservableObject {
             stage.discardLive()
             return
         }
-        guard preferences.isLivePicture else {
+        guard effectiveLivePicture else {
             capture.stopStream()
             stage.discardLive()
             capture.beginPrewarm(interval: preferences.prewarmInterval)
@@ -342,7 +400,7 @@ final class HingeController: ObservableObject {
     /// Shows the held screenshot, or waits for one. A pre-warm capture that is
     /// already running counts as that wait.
     private func presentPicture() {
-        if preferences.isLivePicture, let screen = NSScreen.builtIn,
+        if effectiveLivePicture, let screen = NSScreen.builtIn,
            stage.showLive(
                on: screen,
                startAngle: preferences.thresholdAngle,

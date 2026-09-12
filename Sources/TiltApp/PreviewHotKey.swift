@@ -1,7 +1,7 @@
 import AppKit
 import Carbon.HIToolbox
 
-/// A single global hotkey (⌥⌘T) that toggles the effect preview.
+/// A single global hotkey that toggles the effect preview.
 ///
 /// Registered through Carbon so it works without Accessibility permission.
 /// Everything here runs on the main thread.
@@ -13,11 +13,25 @@ final class PreviewHotKey: @unchecked Sendable {
 
     private var hotKey: EventHotKeyRef?
     private var installed = false
+    /// A kVK_ANSI_* virtual key code. The default is ⌥⌘T.
+    private var keyCode = UInt32(kVK_ANSI_T)
+    /// Carbon modifier flags (cmdKey | optionKey | ...). The default is ⌥⌘T.
+    private var modifiers = UInt32(1 << 8 | 1 << 11)
 
     private init() {}
 
     func setEnabled(_ enabled: Bool) {
         if enabled { install() } else { uninstall() }
+    }
+
+    /// Changes the binding, re-registering when the hotkey is installed.
+    /// When it is not installed, the binding is just stored for later.
+    func setBinding(keyCode: UInt32, modifiers: UInt32) {
+        self.keyCode = keyCode
+        self.modifiers = modifiers
+        guard installed else { return }
+        uninstall()
+        install()
     }
 
     private func install() {
@@ -43,12 +57,13 @@ final class PreviewHotKey: @unchecked Sendable {
             Unmanaged.passUnretained(self).toOpaque(),
             nil
         )
-        // Signature "TILT", id 1. Modifiers are cmdKey | optionKey written
-        // out, so this does not depend on Carbon's constant types.
+        // Signature "TILT", id 1. Modifier bits are written out numerically
+        // (cmdKey = 1 << 8, ...), so this does not depend on Carbon's
+        // constant types.
         var hotKeyID = EventHotKeyID(signature: OSType(0x54494C54), id: 1)
         let status = RegisterEventHotKey(
-            UInt32(kVK_ANSI_T),
-            UInt32(1 << 8 | 1 << 11),
+            keyCode,
+            modifiers,
             hotKeyID,
             GetApplicationEventTarget(),
             0,

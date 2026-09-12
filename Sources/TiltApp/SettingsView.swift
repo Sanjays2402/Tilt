@@ -9,6 +9,7 @@ struct SettingsView: View {
     @State private var launchesAtLogin = SMAppService.mainApp.status == .enabled
     @State private var hasScreenPermission = CGPreflightScreenCaptureAccess()
     @State private var settingsOpenFailed = false
+    @StateObject private var hotKeyRecorder = HotKeyRecorder()
 
     var onQuit: () -> Void
 
@@ -38,6 +39,7 @@ struct SettingsView: View {
                         }
                         lookGroup
                         motionGroup
+                        idleGroup
                     }
                     .padding(.horizontal, Self.inset)
                     .padding(.vertical, 12)
@@ -57,6 +59,7 @@ struct SettingsView: View {
         .frame(width: Self.width)
         .tint(.indigo)
         .onAppear { hasScreenPermission = CGPreflightScreenCaptureAccess() }
+        .onDisappear { hotKeyRecorder.cancel() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             hasScreenPermission = CGPreflightScreenCaptureAccess()
         }
@@ -113,6 +116,12 @@ struct SettingsView: View {
                 help: "Off holds the frame from when the effect started."
             )
             .disabled(!preferences.isEnabled)
+            toggleRow(
+                "Battery saver",
+                isOn: $preferences.batterySaverEnabled,
+                help: "On battery power, holds the frame instead of streaming live video."
+            )
+            .disabled(!preferences.isEnabled)
         }
     }
 
@@ -163,14 +172,24 @@ struct SettingsView: View {
         }
     }
 
+    private var idleGroup: some View {
+        group("Idle glass") {
+            toggleRow(
+                "Idle glass",
+                isOn: $preferences.idleGlassEnabled,
+                help: "Plays the effect once after the Mac sits untouched."
+            )
+            slider(
+                "Idle minutes", value: $preferences.idleGlassMinutes, in: 1...60, format: "%.0f min",
+                help: "How long without input before it plays."
+            )
+        }
+    }
+
     private var appGroup: some View {
         VStack(alignment: .leading, spacing: 8) {
             toggleRow("Show angle in menu bar", isOn: $preferences.showsAngleInMenuBar, help: nil)
-            toggleRow(
-                "Preview hotkey",
-                isOn: $preferences.previewHotKeyEnabled,
-                help: "⌥⌘T anywhere toggles the effect preview."
-            )
+            hotKeyRow
             toggleRow("Launch at login", isOn: $launchesAtLogin, help: nil)
                 .onChange(of: launchesAtLogin) { _, newValue in
                     setLaunchAtLogin(newValue)
@@ -194,6 +213,37 @@ struct SettingsView: View {
             }
             .font(.caption2)
             .padding(.top, 2)
+        }
+    }
+
+    // MARK: - Hotkey recording
+
+    private var hotKeyRow: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack {
+                Text("Preview hotkey")
+                Spacer()
+                Text(HotKeyBinding.name(
+                    keyCode: preferences.previewHotKeyKeyCode,
+                    modifiers: preferences.previewHotKeyModifiers
+                ))
+                .foregroundStyle(.secondary)
+                Toggle("", isOn: $preferences.previewHotKeyEnabled)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .accessibilityLabel("Preview hotkey")
+                Button(hotKeyRecorder.isRecording ? "Press keys…" : "Change") {
+                    hotKeyRecorder.onRecord = { [weak preferences] keyCode, modifiers in
+                        preferences?.previewHotKeyKeyCode = keyCode
+                        preferences?.previewHotKeyModifiers = modifiers
+                    }
+                    hotKeyRecorder.start()
+                }
+                .controlSize(.small)
+                .disabled(hotKeyRecorder.isRecording)
+            }
+            description("Toggles the effect preview from anywhere.")
         }
     }
 

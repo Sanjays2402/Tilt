@@ -131,11 +131,18 @@ final class Preferences: ObservableObject {
         static let showsAngleInMenuBar = "showsAngleInMenuBar"
         static let isLivePicture = "isLivePicture"
         static let previewHotKeyEnabled = "previewHotKeyEnabled"
+        static let idleGlassEnabled = "idleGlassEnabled"
+        static let idleGlassMinutes = "idleGlassMinutes"
+        static let batterySaverEnabled = "batterySaverEnabled"
+        static let previewHotKeyKeyCode = "previewHotKeyKeyCode"
+        static let previewHotKeyModifiers = "previewHotKeyModifiers"
 
         static let all = [
             isEnabled, thresholdAngle, blurSpan, maxBlurRadius,
             maxDim, viewingDistance, recession, blurEvenness, dimReach,
             showsAngleInMenuBar, isLivePicture, previewHotKeyEnabled,
+            idleGlassEnabled, idleGlassMinutes, batterySaverEnabled,
+            previewHotKeyKeyCode, previewHotKeyModifiers,
         ]
     }
 
@@ -152,6 +159,12 @@ final class Preferences: ObservableObject {
         Key.showsAngleInMenuBar: false,
         Key.isLivePicture: true,
         Key.previewHotKeyEnabled: true,
+        Key.idleGlassEnabled: false,
+        Key.idleGlassMinutes: 10.0,
+        Key.batterySaverEnabled: true,
+        // kVK_ANSI_T, cmdKey | optionKey: the historical default binding.
+        Key.previewHotKeyKeyCode: 0x11,
+        Key.previewHotKeyModifiers: (1 << 8) | (1 << 11),
     ]
 
     /// Master switch for the depth effect.
@@ -214,9 +227,36 @@ final class Preferences: ObservableObject {
         didSet { defaults.set(isLivePicture, forKey: Key.isLivePicture) }
     }
 
-    /// The global preview hotkey (⌥⌘T).
+    /// The global preview hotkey. The binding itself lives in
+    /// previewHotKeyKeyCode/previewHotKeyModifiers.
     @Published var previewHotKeyEnabled: Bool {
         didSet { defaults.set(previewHotKeyEnabled, forKey: Key.previewHotKeyEnabled) }
+    }
+
+    /// Play the depth effect once after the Mac sits untouched, like a
+    /// screensaver.
+    @Published var idleGlassEnabled: Bool {
+        didSet { defaults.set(idleGlassEnabled, forKey: Key.idleGlassEnabled) }
+    }
+
+    /// Minutes without keyboard or mouse input before idle glass plays. 1...60.
+    @Published var idleGlassMinutes: Double {
+        didSet { defaults.set(idleGlassMinutes, forKey: Key.idleGlassMinutes) }
+    }
+
+    /// On battery power, hold the frame instead of streaming live video.
+    @Published var batterySaverEnabled: Bool {
+        didSet { defaults.set(batterySaverEnabled, forKey: Key.batterySaverEnabled) }
+    }
+
+    /// Virtual key code of the preview hotkey (a kVK_ANSI_* value).
+    @Published var previewHotKeyKeyCode: Int {
+        didSet { defaults.set(previewHotKeyKeyCode, forKey: Key.previewHotKeyKeyCode) }
+    }
+
+    /// Carbon modifier flags of the preview hotkey (cmdKey | optionKey | ...).
+    @Published var previewHotKeyModifiers: Int {
+        didSet { defaults.set(previewHotKeyModifiers, forKey: Key.previewHotKeyModifiers) }
     }
 
     /// The preset currently animating toward, if any. UI state, not persisted.
@@ -270,6 +310,11 @@ final class Preferences: ObservableObject {
         showsAngleInMenuBar = defaults.bool(forKey: Key.showsAngleInMenuBar)
         isLivePicture = defaults.bool(forKey: Key.isLivePicture)
         previewHotKeyEnabled = defaults.bool(forKey: Key.previewHotKeyEnabled)
+        idleGlassEnabled = defaults.bool(forKey: Key.idleGlassEnabled)
+        idleGlassMinutes = defaults.double(forKey: Key.idleGlassMinutes)
+        batterySaverEnabled = defaults.bool(forKey: Key.batterySaverEnabled)
+        previewHotKeyKeyCode = defaults.integer(forKey: Key.previewHotKeyKeyCode)
+        previewHotKeyModifiers = defaults.integer(forKey: Key.previewHotKeyModifiers)
     }
 
     func resetToDefaults() {
@@ -290,6 +335,11 @@ final class Preferences: ObservableObject {
         showsAngleInMenuBar = defaults.bool(forKey: Key.showsAngleInMenuBar)
         isLivePicture = defaults.bool(forKey: Key.isLivePicture)
         previewHotKeyEnabled = defaults.bool(forKey: Key.previewHotKeyEnabled)
+        idleGlassEnabled = defaults.bool(forKey: Key.idleGlassEnabled)
+        idleGlassMinutes = defaults.double(forKey: Key.idleGlassMinutes)
+        batterySaverEnabled = defaults.bool(forKey: Key.batterySaverEnabled)
+        previewHotKeyKeyCode = defaults.integer(forKey: Key.previewHotKeyKeyCode)
+        previewHotKeyModifiers = defaults.integer(forKey: Key.previewHotKeyModifiers)
     }
 
     /// Applies a look preset. Each assignment persists through its own
