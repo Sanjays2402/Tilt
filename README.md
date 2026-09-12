@@ -37,7 +37,9 @@ One tap, three moods. Every look is just a bundle of the sliders underneath — 
 - **Lid-angle gauge** — the menu bar popover opens on an animated arc gauge of your live lid angle.
 - **Animated looks** — picking a preset glides every slider (and the live effect) to the new look with an ease-out sweep. Grab a slider mid-flight and it yields to you.
 - **Living frost** — a whisper of animated grain and a slow sheen drift through the glass. Frozen entirely when Reduce Motion is on.
-- **Preview hotkey** — ⌥⌘T anywhere plays the effect once on your current screen, no lid required.
+- **Idle glass** — leave the Mac untouched for a few minutes and the effect plays once, like a screensaver.
+- **Battery saver** — on battery power, holds the frame instead of streaming live video.
+- **Preview hotkey** — plays the effect once on your current screen, no lid required. ⌥⌘T by default, and you can record your own.
 - **Launch at login** — set it once, it lives in the menu bar.
 - **Intel-safe mipmaps** — if the MPS Gaussian pyramid can't encode on your GPU, the renderer falls back to blit mipmaps instead of black glass.
 
@@ -54,7 +56,9 @@ Sources/
     Geometry.swift          projection math, spring, blur gradient
     Shaders.metal           the effect, as real Metal (in Resources/)
     SettingsView.swift      the menu bar popover UI, incl. the lid gauge
-    PreviewHotKey.swift     the global ⌥⌘T preview hotkey (Carbon)
+    PreviewHotKey.swift     the global preview hotkey (Carbon)
+    HotKeyRecorder.swift    the record-your-own hotkey UI
+    PowerMonitor.swift      battery vs AC power source watcher
   TiltProbe/      tilt-probe: a CLI for reading the raw sensor
 ```
 
@@ -75,6 +79,14 @@ The script creates `build/Tilt.app` with an ad-hoc signature. Open it from Finde
 ```sh
 ./build.sh --run
 ```
+
+For a double-clickable installer with an Applications shortcut:
+
+```sh
+./build.sh --dmg
+```
+
+See `./build.sh --help` for all options (`--universal`, `--clean`).
 
 Grant **Screen Recording** permission when prompted — that's how the effect sees your screen. macOS may ask again after rebuilding with ad-hoc signing.
 
